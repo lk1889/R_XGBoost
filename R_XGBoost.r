@@ -1,5 +1,8 @@
-rm(list=ls())
-A<-read.table("E:\\test1.txt",header=T)
+# ===== 参数区：改这里即可换数据 / 换目标列 =====
+data_path   <- "E:/test1.txt"     # 原硬编码 "E:\\test1.txt"，路径改为变量，便于迁移
+target_col  <- "竞争力系数"       # 目标列名参数化，换数据集只改此处
+# ================================================
+A <- read.table(data_path, header = T)
 str(A)
 head(A)
 n<-nrow(A)
@@ -29,7 +32,7 @@ head(data1)
 # dataset2 = as.data.frame(dataset2)
 # head(dataset2)
 
-#xgboost
+# 依赖：移除已弃用的 plyr；xgb.plot.importance 由 xgboost 自带，无需额外包
 library(xgboost)
 library(ggplot2)
 library(lattice)
@@ -38,7 +41,6 @@ library(caret)
 library(readr)
 library(stringr)
 library(car)
-library(plyr)
 require(xgboost)
 
 #数值类型转化
@@ -48,9 +50,7 @@ for (i in 1:ncol(data1)){
 
 #XGBoost算法过程
 require(xgboost)
-## Loading required package: xgboost
 require(methods)
-require(plyr)
 set.seed(123)
 n <- nrow(data1)
 index = sample(n,round(0.7*n))
@@ -58,18 +58,18 @@ train.xg = data1[index,]
 test.xg = data1[-index,]
 
 
-label <- as.matrix(train.xg['竞争力系数'])
+label <- as.matrix(train.xg[target_col])
 data <- as.matrix(train.xg[,1:(ncol(data1)-1)])
 
-label2 <- as.matrix(test.xg['竞争力系数'])
+label2 <- as.matrix(test.xg[target_col])
 data2 <- as.matrix(test.xg[,1:(ncol(data1)-1)])
 
 xgmat <- xgb.DMatrix(data, label = label, missing = -10000)
 param <- list("objective" = "multi:softmax",
-              "bst:eta" = 0.000000001,
+              "eta" = 0.1,
               "gamma"=0.5,
-              "bst:max_depth" = 6,
-              "eval_metric" = "logloss","rmse","auc","error",
+              "max_depth" = 6,
+              "eval_metric" = "mlogloss",
               "silent" = 0,
               "nthread"=16,
               "min_child_weight" =1.5,
@@ -89,9 +89,8 @@ model[1:10] #This statement prints top 10 nodes of the model
 names <- dimnames(data.matrix(data1[,1:(ncol(data1)-1)]))[[2]]
 # 计算特征重要性矩阵
 importance_matrix <- xgb.importance(names, model = bst)
-# 制图抓取最重要的因素变量
-library(Ckmean.1d.dp)
+# 制图抓取最重要的因素变量（xgb.plot.importance 由 xgboost 自带，删除不存在的 Ckmean.1d.dp）
 xgb.plot.importance(importance_matrix[1:6,])
-#做交叉验证
-cv.res <- xgb.cv(data = data, label = label, max.depth = 6,eta = 0.0001, nround = 2, objective = "multi:softmax",num_class=5,nfold = 5)
+# 交叉验证
+cv.res <- xgb.cv(data = xgmat, max_depth = 6, eta = 0.1, nround = 1000, objective = "multi:softmax", num_class = 5, nfold = 5)
 cv.res
